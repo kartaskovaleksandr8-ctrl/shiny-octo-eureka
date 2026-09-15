@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BeautiFace — Запись</title>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #121214;
+            --card: #1F1F22;
+            --card-hover: #2A2A2E;
+            --accent: #F4AD93;
+            --accent-dark: #D89B82;
+            --text: #FFFFFF;
+            --text-secondary: #A0A0A5;
+            --text-muted: #6B6B70;
+            --border: #2C2C30;
+            --success: #4CAF50;
+            --error: #EF5350;
+            --radius: 14px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .screen { display: none; min-height: 100vh; padding: 16px; }
+        .screen.active { display: block; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 20px 0 24px;
+        }
+        .header h1 {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .header p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        /* Category tabs */
+        .categories-scroll {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 0 0 12px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .categories-scroll::-webkit-scrollbar { display: none; }
+        .cat-chip {
+            flex-shrink: 0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .cat-chip.active {
+            background: var(--accent);
+            color: #1a1a1a;
+            border-color: var(--accent);
+        }
+
+        /* Service card */
+        .service-card {
+            background: var(--card);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.2s;
+            border: 1px solid var(--border);
+        }
+        .service-card:active { transform: scale(0.98); }
+        .service-card:hover { box-shadow: 0 0 20px rgba(244,173,145,0.1); }
+        .service-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background: var(--card-hover);
+        }
+        .service-info { padding: 16px; }
+        .service-name {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .service-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        .service-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .service-price {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+        .service-duration {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Master card */
+        .master-card {
+            display: flex;
+            align-items: center;
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            transition: all 0.15s;
+        }
+        .master-card:active { transform: scale(0.98); }
+        .master-card.selected {
+            border-color: var(--accent);
+            background: rgba(244,173,145,0.08);
+        }
+        .master-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--card-hover);
+            margin-right: 14px;
+        }
+        .master-avatar-placeholder {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--card-hover);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 14px;
+            font-size: 24px;
+        }
+        .master-info { flex: 1; }
+        .master-name { font-size: 15px; font-weight: 600; }
+        .master-bio { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+        /* Calendar */
+        .calendar-scroll {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 0 0 16px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .calendar-scroll::-webkit-scrollbar { display: none; }
+        .date-card {
+            flex-shrink: 0;
+            width: 64px;
+            padding: 12px 0;
+            text-align: center;
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .date-card:active { transform: scale(0.95); }
+        .date-card.active {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .date-card.active .date-day,
+        .date-card.active .date-num { color: #1a1a1a; }
+        .date-day { font-size: 11px; color: var(--text-muted); text-transform: capitalize; }
+        .date-num { font-size: 20px; font-weight: 700; margin-top: 4px; }
+
+        /* Time slots */
+        .slots-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 0 0 20px;
+        }
+        .slot {
+            padding: 10px 18px;
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .slot:active { transform: scale(0.95); }
+        .slot.active {
+            background: var(--accent);
+            color: #1a1a1a;
+            border-color: var(--accent);
+        }
+        .slot.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
+        .slot.hot::after {
+            content: '🔥';
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            font-size: 14px;
+        }
+        .slot.hot.active::after { content: ''; }
+
+        /* Confirmation */
+        .confirm-card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .confirm-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .confirm-row:last-child { border-bottom: none; }
+        .confirm-label { color: var(--text-secondary); font-size: 14px; }
+        .confirm-value { font-weight: 600; font-size: 14px; }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%;
+            height: 52px;
+            background: var(--accent);
+            color: #1a1a1a;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            width: 100%;
+            height: 48px;
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        /* Progress steps */
+        .steps {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 0 0 20px;
+        }
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: background 0.2s;
+        }
+        .step-dot.active { background: var(--accent); }
+        .step-dot.done { background: var(--accent); opacity: 0.5; }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Success */
+        .success-icon {
+            font-size: 64px;
+            text-align: center;
+            margin: 40px 0 20px;
+        }
+        .success-title {
+            text-align: center;
+            font-family: Georgia, serif;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .success-text {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 32px;
+        }
+
+        /* Re-booking */
+        .rebook-card {
+            background: linear-gradient(135deg, rgba(244,173,145,0.15), rgba(244,173,145,0.05));
+            border: 1px solid rgba(244,173,145,0.3);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .rebook-card:active { transform: scale(0.98); }
+        .rebook-label { font-size: 12px; color: var(--accent); font-weight: 600; }
+        .rebook-service { font-size: 16px; font-weight: 700; margin: 4px 0; }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin: 20px 0 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .comment-input {
+            width: 100%;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            min-height: 80px;
+        }
+        .comment-input:focus { outline: none; border-color: var(--accent); }
+
+        .empty { text-align: center; padding: 40px 0; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<!-- ─── Screen 0: Loading ─── -->
+<div id="screen-loading" class="screen active">
+    <div class="loading">
+        <div class="spinner"></div>
+        <p style="margin-top:16px;color:var(--text-secondary);font-size:14px">Загрузка...</p>
+    </div>
+</div>
+
+<!-- ─── Screen 1: Services (Услуга) ─── -->
+<div id="screen-services" class="screen">
+    <div class="header">
+        <h1>BeautiFace</h1>
+        <p>Выберите услугу для записи</p>
+    </div>
+    <div class="steps">
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+    </div>
+
+    <!-- Re-booking (if user has past bookings) -->
+    <div id="rebook-section" style="display:none">
+        <div class="rebook-card" onclick="rebookLast()">
+            <div class="rebook-label">⚡ Быстрая запись</div>
+            <div class="rebook-service" id="rebook-service-name"></div>
+            <div style="font-size:13px;color:var(--text-secondary)" id="rebook-master"></div>
+        </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="categories-scroll" id="cat-tabs"></div>
+
+    <!-- Services list -->
+    <div id="services-list"></div>
+</div>
+
+<!-- ─── Screen 2: Master (Мастер) ─── -->
+<div id="screen-master" class="screen">
+    <div class="header">
+        <h1>Выбор мастера</h1>
+        <p id="master-service-name"></p>
+    </div>
+    <div class="steps">
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+    </div>
+    <div id="masters-list"></div>
+    <button class="btn-primary" onclick="goToDate()">Далее</button>
+    <button class="btn-secondary" onclick="backToServices()">Назад</button>
+</div>
+
+<!-- ─── Screen 3: Date & Time ─── -->
+<div id="screen-datetime" class="screen">
+    <div class="header">
+        <h1>Дата и время</h1>
+        <p>Выберите удобный слот</p>
+    </div>
+    <div class="steps">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+    </div>
+    <div class="section-title">Дата</div>
+    <div class="calendar-scroll" id="calendar"></div>
+    <div class="section-title">Свободное время</div>
+    <div class="slots-grid" id="slots"></div>
+    <button class="btn-primary" id="btn-confirm" onclick="goToConfirm()" disabled>Далее</button>
+    <button class="btn-secondary" onclick="backToMaster()">Назад</button>
+</div>
+
+<!-- ─── Screen 4: Confirm (Подтверждение) ─── -->
+<div id="screen-confirm" class="screen">
+    <div class="header">
+        <h1>Подтверждение</h1>
+        <p>Проверьте детали записи</p>
+    </div>
+    <div class="steps">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+    </div>
+    <div class="confirm-card">
+        <div class="confirm-row">
+            <span class="confirm-label">Услуга</span>
+            <span class="confirm-value" id="c-service"></span>
+        </div>
+        <div class="confirm-row">
+            <span class="confirm-label">Мастер</span>
+            <span class="confirm-value" id="c-master"></span>
+        </div>
+        <div class="confirm-row">
+            <span class="confirm-label">Дата</span>
+            <span class="confirm-value" id="c-date"></span>
+        </div>
+        <div class="confirm-row">
+            <span class="confirm-label">Время</span>
+            <span class="confirm-value" id="c-time"></span>
+        </div>
+        <div class="confirm-row">
+            <span class="confirm-label">Стоимость</span>
+            <span class="confirm-value" id="c-price" style="color:var(--accent)"></span>
+        </div>
+    </div>
+    <div class="section-title">Комментарий (необязательно)</div>
+    <textarea class="comment-input" id="comment" placeholder="Например: аллергия на определённые компоненты..."></textarea>
+    <div style="height:20px"></div>
+    <button class="btn-primary" id="btn-submit" onclick="submitBooking()">Записаться</button>
+    <button class="btn-secondary" onclick="backToDateTime()">Назад</button>
+</div>
+
+<!-- ─── Screen 5: Success ─── -->
+<div id="screen-success" class="screen">
+    <div class="success-icon">✅</div>
+    <div class="success-title">Вы записаны!</div>
+    <div class="success-text" id="success-details"></div>
+    <button class="btn-primary" onclick="resetApp()">Готово</button>
+</div>
+
+<script>
+// ─── Config ─────────────────────────────────────────────────────
+const VK_APP_ID = 54773416;
+const SUPABASE_URL = 'https://rvldookfojtpromuqvao.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_gYZ90cQJnGgu2MVXKS-xfw_LEhMDGu0';
+
+// ─── VK Bridge init ─────────────────────────────────────────────
+let vkUser = null;
+
+async function initVK() {
+    if (typeof vkBridge !== 'undefined') {
+        try {
+            await vkBridge.send('VKWebAppInit');
+            // Get user data
+            const userData = await vkBridge.send('VKWebAppGetUserInfo');
+            vkUser = userData;
+            console.log('VK user:', vkUser);
+        } catch(e) {
+            console.log('VK Bridge error:', e);
+        }
+    }
+}
+
+// ─── Supabase init ──────────────────────────────────────────────
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ─── State ──────────────────────────────────────────────────────
+let state = {
+    services: [],
+    masters: [],
+    settings: null,
+    hotSlots: [],
+    bookings: [],
+    userBookings: [],
+    selectedService: null,
+    selectedMaster: null, // null = "any master"
+    selectedDate: null,
+    selectedTime: null,
+    selectedCategory: 'Все',
+};
+
+// ─── Load data ──────────────────────────────────────────────────
+async function loadData() {
+    try {
+        // Services
+        const { data: services } = await supabase.from('services')
+            .select('*').eq('is_active', true).order('name');
+        state.services = services || [];
+
+        // Masters
+        const { data: masters } = await supabase.from('masters')
+            .select('*').eq('is_active', true).order('name');
+        state.masters = masters || [];
+
+        // Settings
+        const { data: settings } = await supabase.from('schedule_settings')
+            .select('*').eq('id', 1).maybeSingle();
+        state.settings = settings || { working_days_start: '09:00', working_days_end: '20:00', slot_interval_minutes: 30, booking_advance_days: 14 };
+
+        // Hot slots
+        const { data: hotSlots } = await supabase.from('hot_slots')
+            .select('*').eq('is_active', true);
+        state.hotSlots = hotSlots || [];
+
+        // User's past bookings (for re-booking)
+        if (vkUser) {
+            const { data: userBookings } = await supabase.from('bookings')
+                .select('*').eq('vk_user_id', vkUser.id)
+                .order('created_at', { ascending: false }).limit(1);
+            state.userBookings = userBookings || [];
+        }
+
+        showScreen('screen-services');
+        renderServices();
+        renderRebook();
+    } catch(e) {
+        console.error('Load error:', e);
+        document.getElementById('screen-loading').innerHTML =
+            '<div class="empty"><p>Ошибка загрузки. Обновите страницу.</p></div>';
+    }
+}
+
+// ─── Render services ────────────────────────────────────────────
+function renderServices() {
+    // Categories
+    const cats = ['Все', ...new Set(state.services.map(s => s.category))];
+    const catTabs = document.getElementById('cat-tabs');
+    catTabs.innerHTML = cats.map(c =>
+        `<div class="cat-chip ${c === state.selectedCategory ? 'active' : ''}" onclick="selectCategory('${c}')">${c}</div>`
+    ).join('');
+
+    // Services
+    const filtered = state.selectedCategory === 'Все'
+        ? state.services
+        : state.services.filter(s => s.category === state.selectedCategory);
+
+    const list = document.getElementById('services-list');
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="empty"><p>Услуг пока нет. Загляните позже!</p></div>';
+        return;
+    }
+    list.innerHTML = filtered.map(s => `
+        <div class="service-card" onclick="selectService('${s.id}')">
+            ${s.photo_url ? `<img src="${s.photo_url}" class="service-img" alt="">` : ''}
+            <div class="service-info">
+                <div class="service-name">${s.name}</div>
+                ${s.description ? `<div class="service-desc">${s.description}</div>` : ''}
+                <div class="service-meta">
+                    <span class="service-price">${s.price} ₽</span>
+                    <span class="service-duration">⏱ ${s.duration_minutes} мин</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectCategory(cat) {
+    state.selectedCategory = cat;
+    renderServices();
+}
+
+function selectService(id) {
+    state.selectedService = state.services.find(s => s.id === id);
+    if (!state.selectedService) return;
+    document.getElementById('master-service-name').textContent = state.selectedService.name;
+    renderMasters();
+    showScreen('screen-master');
+}
+
+// ─── Render masters ─────────────────────────────────────────────
+function renderMasters() {
+    const list = document.getElementById('masters-list');
+    const items = [
+        { id: null, name: 'Любой свободный', bio: 'Подберём лучшего мастера', photo: '' },
+        ...state.masters.map(m => ({ id: m.id, name: m.name, bio: m.bio || '', photo: m.photo_url || '' }))
+    ];
+    list.innerHTML = items.map(m => `
+        <div class="master-card ${state.selectedMaster?.id === m.id || (!state.selectedMaster && m.id === null) ? 'selected' : ''}"
+             onclick="selectMaster(${m.id ? `'${m.id}'` : 'null'})">
+            ${m.photo
+                ? `<img src="${m.photo}" class="master-avatar" alt="">`
+                : `<div class="master-avatar-placeholder">💎</div>`}
+            <div class="master-info">
+                <div class="master-name">${m.name}</div>
+                <div class="master-bio">${m.bio}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectMaster(id) {
+    state.selectedMaster = id ? state.masters.find(m => m.id === id) : { id: null, name: 'Любой мастер' };
+    renderMasters();
+}
+
+// ─── Date & Time ────────────────────────────────────────────────
+function renderCalendar() {
+    const advance = state.settings.booking_advance_days || 14;
+    const today = new Date();
+    const days = [];
+    const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const monthNames = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+    for (let i = 0; i < advance; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + i);
+        days.push(d);
+    }
+
+    const cal = document.getElementById('calendar');
+    cal.innerHTML = days.map(d => {
+        const dateStr = formatDate(d);
+        const isActive = state.selectedDate && formatDate(state.selectedDate) === dateStr;
+        return `<div class="date-card ${isActive ? 'active' : ''}" onclick="selectDate('${dateStr}')">
+            <div class="date-day">${dayNames[d.getDay()]}</div>
+            <div class="date-num">${d.getDate()}</div>
+        </div>`;
+    }).join('');
+
+    // Auto-select today
+    if (!state.selectedDate) {
+        selectDate(formatDate(today));
+    }
+}
+
+function selectDate(dateStr) {
+    state.selectedDate = new Date(dateStr + 'T00:00:00');
+    state.selectedTime = null;
+    renderCalendar();
+    renderSlots();
+    updateConfirmButton();
+}
+
+function renderSlots() {
+    if (!state.selectedDate) return;
+
+    const start = state.settings.working_days_start || '09:00';
+    const end = state.settings.working_days_end || '20:00';
+    const interval = state.settings.slot_interval_minutes || 30;
+
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+
+    const slots = [];
+    let h = startH, m = startM;
+    while (h < endH || (h === endH && m < endM)) {
+        const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        slots.push(timeStr);
+        m += interval;
+        if (m >= 60) { h += Math.floor(m/60); m = m % 60; }
+    }
+
+    // Check which slots are already booked
+    const dateStr = formatDate(state.selectedDate);
+    const bookedTimes = state.bookings
+        .filter(b => b.booking_date === dateStr && b.status !== 'cancelled')
+        .map(b => b.booking_time);
+
+    // Check hot slots
+    const hotSlotTimes = state.hotSlots
+        .filter(hs => hs.slot_date === dateStr && hs.is_active)
+        .map(hs => hs.slot_time);
+
+    const slotsEl = document.getElementById('slots');
+    slotsEl.innerHTML = slots.map(time => {
+        const isBooked = bookedTimes.includes(time);
+        const isHot = hotSlotTimes.includes(time);
+        const isActive = state.selectedTime === time;
+        const classes = ['slot'];
+        if (isBooked) classes.push('disabled');
+        if (isHot) classes.push('hot');
+        if (isActive) classes.push('active');
+        return `<div class="${classes.join(' ')}" ${isBooked ? '' : `onclick="selectTime('${time}')"`}>${time}</div>`;
+    }).join('');
+
+    if (slots.length === 0) {
+        slotsEl.innerHTML = '<div class="empty"><p>Нет свободных слотов на эту дату</p></div>';
+    }
+}
+
+async function selectTime(time) {
+    state.selectedTime = time;
+    renderSlots();
+    updateConfirmButton();
+}
+
+function updateConfirmButton() {
+    const btn = document.getElementById('btn-confirm');
+    btn.disabled = !state.selectedDate || !state.selectedTime;
+}
+
+// ─── Confirm ────────────────────────────────────────────────────
+function goToConfirm() {
+    if (!state.selectedDate || !state.selectedTime) return;
+    const s = state.selectedService;
+    const m = state.selectedMaster || { name: 'Любой мастер' };
+    const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+        'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+    document.getElementById('c-service').textContent = s.name;
+    document.getElementById('c-master').textContent = m.name;
+    document.getElementById('c-date').textContent =
+        `${state.selectedDate.getDate()} ${monthNames[state.selectedDate.getMonth()]}`;
+    document.getElementById('c-time').textContent = state.selectedTime;
+    document.getElementById('c-price').textContent = `${s.price} ₽`;
+    showScreen('screen-confirm');
+}
+
+// ─── Submit booking ─────────────────────────────────────────────
+async function submitBooking() {
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.textContent = 'Записываем...';
+
+    try {
+        const s = state.selectedService;
+        const m = state.selectedMaster || { id: null, name: 'Любой мастер' };
+        const dateStr = formatDate(state.selectedDate);
+
+        const booking = {
+            vk_user_id: vkUser ? vkUser.id : null,
+            client_name: vkUser ? `${vkUser.first_name} ${vkUser.last_name}` : 'Гость',
+            client_photo: vkUser ? vkUser.photo_200 : '',
+            client_phone: '',
+            service_id: s.id,
+            service_name: s.name,
+            master_id: m.id,
+            master_name: m.name,
+            booking_date: dateStr,
+            booking_time: state.selectedTime,
+            duration_minutes: s.duration_minutes,
+            price: s.price,
+            comment: document.getElementById('comment').value.trim(),
+            status: 'confirmed',
+            client_vk_id: vkUser ? String(vkUser.id) : null,
+        };
+
+        const { error } = await supabase.from('bookings').insert(booking);
+        if (error) throw error;
+
+        // Show success
+        const monthNames = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+        document.getElementById('success-details').innerHTML =
+            `${s.name}<br>${state.selectedDate.getDate()} ${monthNames[state.selectedDate.getMonth()]} в ${state.selectedTime}<br>Мастер: ${m.name}`;
+        showScreen('screen-success');
+    } catch(e) {
+        console.error('Booking error:', e);
+        alert('Не удалось записаться. Попробуйте ещё раз.');
+        btn.disabled = false;
+        btn.textContent = 'Записаться';
+    }
+}
+
+// ─── Re-booking ─────────────────────────────────────────────────
+function renderRebook() {
+    if (state.userBookings.length === 0 || !vkUser) {
+        document.getElementById('rebook-section').style.display = 'none';
+        return;
+    }
+    const last = state.userBookings[0];
+    document.getElementById('rebook-service-name').textContent = last.service_name;
+    document.getElementById('rebook-master').textContent = `Мастер: ${last.master_name} · ${last.price} ₽`;
+    document.getElementById('rebook-section').style.display = 'block';
+}
+
+function rebookLast() {
+    const last = state.userBookings[0];
+    const service = state.services.find(s => s.id === last.service_id);
+    if (service) {
+        selectService(service.id);
+    } else {
+        alert('Эта услуга больше недоступна. Выберите новую.');
+    }
+}
+
+// ─── Navigation ─────────────────────────────────────────────────
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+function backToServices() { showScreen('screen-services'); }
+function backToMaster() { showScreen('screen-master'); }
+function backToDateTime() { showScreen('screen-datetime'); }
+
+function goToDate() {
+    renderCalendar();
+    renderSlots();
+    showScreen('screen-datetime');
+}
+
+function resetApp() {
+    state.selectedService = null;
+    state.selectedMaster = null;
+    state.selectedDate = null;
+    state.selectedTime = null;
+    state.selectedCategory = 'Все';
+    document.getElementById('comment').value = '';
+    loadData();
+}
+
+// ─── Utils ──────────────────────────────────────────────────────
+function formatDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ─── Init ───────────────────────────────────────────────────────
+(async () => {
+    await initVK();
+    await loadData();
+})();
+</script>
+</body>
+</html>
